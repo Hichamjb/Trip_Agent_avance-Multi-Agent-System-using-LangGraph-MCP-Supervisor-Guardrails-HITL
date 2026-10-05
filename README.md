@@ -1,376 +1,779 @@
 # 🌍 Trip Agent Advanced — Multi-Agent Travel Planning System
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![LangGraph](https://img.shields.io/badge/LangGraph-Multi--Agent-orange.svg)](https://github.com/langchain-ai/langgraph)
-[![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-purple.svg)](https://modelcontextprotocol.io/)
-[![Flask](https://img.shields.io/badge/Flask-Web%20API-black.svg)](https://flask.palletsprojects.com/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.136%2B-009688.svg)](https://fastapi.tiangolo.com/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-1.2.2-orange.svg)](https://github.com/langchain-ai/langgraph)
+[![MCP](https://img.shields.io/badge/MCP-1.28.1-purple.svg)](https://modelcontextprotocol.io/)
+[![Groq](https://img.shields.io/badge/LLM-Groq-red.svg)](https://groq.com/)
+[![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL-336791.svg)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/Docker-ready-blue.svg)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-> A modular multi-agent travel planning system built with **LangGraph**, **LangChain**, **MCP**, custom input/output guardrails, and a human approval step.
+> An AI-powered multi-agent travel planning system built with **LangGraph**, **MCP**, **Groq**, **FastAPI**, **PostgreSQL**, and **Human-in-the-Loop (HITL)** approval.
 
 ---
 
-## 📋 Table of Contents
+## 📌 Overview
 
-* [Overview](#-overview)
-* [Features](#-features)
-* [Architecture](#-architecture)
-* [Workflow](#-workflow)
-* [Tech Stack](#-tech-stack)
-* [Project Structure](#-project-structure)
-* [Installation](#-installation)
-* [Configuration](#-configuration)
-* [Usage](#-usage)
-* [Agents](#-agents)
-* [MCP Integration](#-mcp-integration)
-* [Guardrails](#-guardrails)
-* [Human Approval](#-human-approval)
-* [Web API](#-web-api)
-* [Testing](#-testing)
-* [Docker](#-docker)
-* [Current Limitations](#-current-limitations)
-* [Future Improvements](#-future-improvements)
-* [License](#-license)
+**Trip Agent Advanced** is a multi-agent travel planning application that transforms a natural-language travel request into a structured travel plan.
 
----
+The system uses a **Supervisor Agent** to analyze the request, validate whether it belongs to the travel domain, extract trip constraints, and dynamically select the specialist agents required to complete the task.
 
-# 🧭 Overview
+The current workflow includes:
 
-**Trip Agent Advanced** is an experimental multi-agent travel planning application that demonstrates how several specialized AI agents can collaborate through a **LangGraph workflow**.
-
-A user provides a natural-language travel request such as:
-
-> "Plan a 5-day trip to Rome in May with a €1200 budget. I like history and gastronomy."
-
-The system validates the request and uses a supervisor to route the task to specialized agents:
-
+* 🧠 Supervisor Agent
+* 🛡️ LLM-based Input Guardrail
 * ✈️ Flight Agent
 * 🏨 Hotel Agent
-* 🎭 Activity Agent
+* 🌦️ Weather Agent
 * 💰 Budget Agent
+* 🗓️ Itinerary Agent
+* 👤 Human-in-the-Loop approval
+* ✨ Final Response Agent
 
-The agents generate travel-related results using local/demo tools. Their outputs are then passed through an output validation layer before being returned to the supervisor.
-
-The application also includes:
-
-* MCP server/client demonstration
-* Input validation
-* Prompt-injection pattern detection
-* Basic PII masking
-* LangGraph checkpointing
-* Human approval through the web interface
-* Flask REST API
-* CLI interface
-* Docker support
-* Unit tests
-
-> **Important:** The current version uses simulated travel data. It does **not** make real flight, hotel, booking, or payment requests.
+The application is exposed through a **FastAPI** web API and an interactive browser interface. LangGraph state is persisted using a **PostgreSQL checkpointer**, allowing a travel-planning thread to pause at the human approval step and resume later.
 
 ---
 
 # ✨ Features
 
-### 🤖 Multi-Agent Architecture
+## 🤖 Multi-Agent Travel Planning
 
-The system separates travel planning into specialized agents:
+The system decomposes travel planning into specialized tasks:
 
-* Flight search
-* Hotel search
-* Activity recommendations
-* Budget calculation
+| Agent               | Responsibility                                                                   |
+| ------------------- | -------------------------------------------------------------------------------- |
+| 🧠 Supervisor       | Validates the request, extracts constraints, selects agents and controls routing |
+| ✈️ Flight Agent     | Provides flight-related information using AviationStack MCP data                 |
+| 🏨 Hotel Agent      | Searches the web for hotel information through Tavily MCP                        |
+| 🌦️ Weather Agent   | Retrieves current weather and forecast through OpenWeather MCP                   |
+| 💰 Budget Agent     | Evaluates trip affordability and identifies budget risks                         |
+| 🗓️ Itinerary Agent | Combines specialist results into a complete draft itinerary                      |
+| 👤 Human Approval   | Pauses the workflow for user review                                              |
+| ✨ Final Agent       | Produces the final polished travel response                                      |
 
-Each agent is implemented independently and can be replaced or extended with real APIs.
+---
 
-### 🧠 Supervisor Agent
+## 🧠 Supervisor + Guardrail
 
-A central supervisor analyzes the conversation and selects the next specialized agent.
+The Supervisor performs two important tasks before travel research begins.
 
-The supervisor can route requests to:
+### 1. Travel-domain guardrail
 
-```text
-flight_agent
-hotel_agent
-activity_agent
-budget_agent
-FINISH
-```
+The system uses the LLM to determine whether the request is related to travel planning or travel information.
 
-### 🔄 LangGraph Workflow
+Supported topics include:
 
-The application uses LangGraph to coordinate:
+* destinations
+* flights
+* hotels
+* weather
+* budgets
+* visas
+* transportation
+* sightseeing
+* food
+* packing
+* itineraries
 
-```text
-Input
-  ↓
-Input Guard
-  ↓
-Supervisor
-  ↓
-Specialized Agent
-  ↓
-Output Guard
-  ↓
-Supervisor
-  ↓
-Synthesis
-  ↓
-Human Approval
-```
+Clearly unrelated, harmful, or illegal requests can be blocked.
 
-### 🔌 MCP Demonstration
+### 2. Dynamic agent selection
 
-The repository contains an MCP server exposing travel-related tools such as:
+The supervisor extracts structured travel constraints such as:
 
 ```text
-search_flights
-search_hotels
+destination
+origin
+duration
+budget
+travel_style
+special_preferences
 ```
 
-An MCP client is also provided for establishing a local MCP session.
+It then selects the required agents.
 
-### 🛡️ Custom Guardrails
+Example:
 
-The project includes lightweight custom guardrails for:
+```json
+{
+  "selected_agents": [
+    "flight_agent",
+    "hotel_agent",
+    "weather_agent",
+    "budget_agent",
+    "itinerary_agent"
+  ],
+  "trip_constraints": {
+    "destination": "Rome",
+    "origin": "Casablanca",
+    "duration": "5 days",
+    "budget": "€1200",
+    "travel_style": "cultural",
+    "special_preferences": [
+      "history",
+      "food"
+    ]
+  }
+}
+```
 
-* Input validation
-* Prompt-injection pattern detection
-* Maximum input length
-* HTML removal
-* Basic forbidden-topic filtering
-* Email masking
-* Phone-number masking
-* Credit-card masking
-
-### ✋ Human Approval
-
-After itinerary synthesis, the application marks the result as requiring approval.
-
-The Flask interface displays a confirmation dialog allowing the user to approve or reject the proposal.
-
-> This is currently a **human approval mechanism**, not a complete transactional booking system.
-
-### 🌐 Web Interface
-
-A simple Flask web application allows users to submit travel requests and receive the generated itinerary.
-
-### 💻 CLI
-
-The system can also be executed directly from the terminal.
-
-### 🐳 Docker
-
-The project includes:
-
-* `Dockerfile`
-* `docker-compose.yml`
-* `.dockerignore`
-
-for containerized execution.
+If supervisor parsing fails, the application falls back to the complete travel workflow rather than stopping the request.
 
 ---
 
 # 🏗️ Architecture
 
-```mermaid
-graph TD
-    U[User] --> API[Flask Web API / CLI]
-
-    API --> IG[Input Guard]
-
-    IG --> S[Supervisor]
-
-    S --> FA[Flight Agent]
-    S --> HA[Hotel Agent]
-    S --> AA[Activity Agent]
-    S --> BA[Budget Agent]
-
-    FA --> OG[Output Guard]
-    HA --> OG
-    AA --> OG
-    BA --> OG
-
-    OG --> S
-
-    S --> SYN[Synthesis]
-
-    SYN --> HITL[Human Approval]
-
-    HITL --> END[Final Result]
-
-    MCP[MCP Server] -. Demo Tools .-> FA
-    MCP -. Demo Tools .-> HA
+```text
+                         ┌─────────────────────┐
+                         │       User          │
+                         └──────────┬──────────┘
+                                    │
+                                    ▼
+                         ┌─────────────────────┐
+                         │      FastAPI        │
+                         │    Web Interface    │
+                         └──────────┬──────────┘
+                                    │
+                                    ▼
+                     ┌──────────────────────────┐
+                     │   Supervisor + Guardrail │
+                     │                          │
+                     │ • Travel validation      │
+                     │ • Constraint extraction  │
+                     │ • Agent selection        │
+                     └────────────┬─────────────┘
+                                  │
+                ┌─────────────────┼─────────────────┐
+                │                 │                 │
+                ▼                 ▼                 ▼
+        ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+        │ Flight      │   │ Hotel       │   │ Weather     │
+        │ Agent       │   │ Agent       │   │ Agent       │
+        └──────┬──────┘   └──────┬──────┘   └──────┬──────┘
+               │                 │                 │
+               ▼                 ▼                 ▼
+          AviationStack       Tavily          OpenWeather
+             MCP               MCP               MCP
+               │                 │                 │
+               └─────────────────┼─────────────────┘
+                                 │
+                                 ▼
+                         ┌───────────────┐
+                         │ Budget Agent  │
+                         └───────┬───────┘
+                                 │
+                                 ▼
+                       ┌───────────────────┐
+                       │ Itinerary Agent   │
+                       │ Draft Generation  │
+                       └─────────┬─────────┘
+                                 │
+                                 ▼
+                       ┌───────────────────┐
+                       │ Human Approval    │
+                       │    interrupt()    │
+                       └─────────┬─────────┘
+                                 │
+                       ┌─────────┴─────────┐
+                       │                   │
+                  Approved             Revision
+                       │                   │
+                       └─────────┬─────────┘
+                                 ▼
+                       ┌───────────────────┐
+                       │   Final Agent     │
+                       │ Final Travel Plan │
+                       └─────────┬─────────┘
+                                 │
+                                 ▼
+                              User
 ```
+
+The actual LangGraph graph contains the supervisor, specialist agents, itinerary generation, HITL interruption, and final response stages.
 
 ---
 
-# 🔄 Workflow
+# 🔄 LangGraph Workflow
 
-## 1. User Request
-
-The user submits a natural-language request:
+The graph starts with the Supervisor:
 
 ```text
-I want to spend 5 days in Rome.
-My budget is €1200.
-I like history and gastronomy.
+START
+  │
+  ▼
+Supervisor
+  │
+  ├── Guardrail blocked ──► END
+  │
+  ├── Flight Agent
+  │
+  ├── Hotel Agent
+  │
+  ├── Weather Agent
+  │
+  ├── Budget Agent
+  │
+  └── Itinerary Agent
+          │
+          ▼
+   Human Approval
+          │
+          ▼
+     Final Agent
+          │
+          ▼
+         END
 ```
 
-## 2. Input Validation
+The supervisor determines which specialist agents are relevant. The selected agents are then executed according to the configured agent order before the itinerary is generated.
 
-The request is checked for:
+---
 
-* Empty input
-* Excessive length
-* Basic prompt-injection patterns
-* Forbidden topics
-* HTML tags
+# 🔌 MCP Architecture
 
-## 3. Supervisor
+The project uses `langchain-mcp-adapters` and `MultiServerMCPClient` to communicate with multiple MCP servers.
 
-The supervisor determines which specialized agent should handle the next step.
+## MCP Servers
+
+### 🔎 Tavily MCP
+
+Transport:
+
+```text
+Streamable HTTP
+```
+
+Endpoint:
+
+```text
+https://mcp.tavily.com/mcp/
+```
+
+Used primarily by the Hotel Agent for web research.
+
+The application calls the Tavily MCP search tool to retrieve hotel and accommodation information.
+
+---
+
+### ✈️ AviationStack MCP
+
+Transport:
+
+```text
+stdio
+```
+
+The project launches:
+
+```bash
+uvx aviationstack-mcp
+```
+
+The Flight Agent uses MCP tools including:
+
+```text
+list_airports
+list_airlines
+```
+
+The retrieved airport and airline information is then passed to the Groq LLM to generate flight-related guidance.
+
+> The current implementation should not be described as a complete real-time flight-price booking engine. The Flight Agent generates recommendations from AviationStack MCP information and LLM reasoning.
+
+---
+
+### 🌦️ OpenWeather MCP
+
+The repository contains its own MCP server:
+
+```text
+custom_weather_mcp_server.py
+```
+
+It uses:
+
+```python
+FastMCP("Weather MCP Server")
+```
+
+and exposes:
+
+```text
+get_current_weather
+get_forecast
+```
+
+The server communicates with OpenWeather's API.
+
+The Weather Agent calls both tools:
+
+```text
+get_current_weather
+get_forecast
+```
+
+and combines their results for the travel workflow.
+
+---
+
+# ✈️ Flight Agent
+
+The Flight Agent is responsible for flight-related planning.
+
+Its workflow is approximately:
+
+```text
+User Request
+     ↓
+AviationStack MCP
+     ↓
+Airport Information
+     +
+Airline Information
+     ↓
+Groq LLM
+     ↓
+Flight Recommendations
+```
+
+The agent asks the model to provide:
+
+1. Likely departure airport
+2. Likely arrival airport
+3. Airlines serving the route
+4. Typical flight duration
+5. Estimated airfare range
+6. Peak-season pricing warning
+7. Booking advice
+
+---
+
+# 🏨 Hotel Agent
+
+The Hotel Agent performs web research using Tavily MCP.
+
+It constructs a search query such as:
+
+```text
+Best hotels for [user travel request]
+```
+
+and sends it to the Tavily MCP server.
+
+The returned research is passed into the travel workflow.
+
+If the MCP search fails, the application returns a fallback message asking the final planner to provide general accommodation guidance and clearly label it as non-live advice.
+
+---
+
+# 🌦️ Weather Agent
+
+The Weather Agent first extracts the destination from the user's request.
+
+It then requests:
+
+```text
+Current Weather
+Forecast
+```
+
+through the local OpenWeather MCP server.
+
+The current weather response contains information such as:
+
+```text
+city
+temperature
+feels-like temperature
+humidity
+weather condition
+wind speed
+```
+
+The forecast tool returns the first five three-hour forecast entries.
+
+---
+
+# 💰 Budget Agent
+
+The Budget Agent evaluates whether the planned trip is realistic for the user's budget.
+
+It receives:
+
+```text
+User Query
+Trip Constraints
+Flight Results
+Hotel Results
+Weather Results
+```
+
+and produces:
+
+1. Estimated cost categories
+2. Budget risk areas
+3. Money-saving suggestions
+4. Overall feasibility
+
+If exact live prices are unavailable, the prompt instructs the model to clearly label estimates as approximate.
+
+---
+
+# 🗓️ Itinerary Agent
+
+The Itinerary Agent integrates the available specialist results.
+
+It receives:
+
+```text
+Trip Constraints
+Flight Results
+Hotel Results
+Weather Results
+Budget Results
+```
+
+and generates a practical, budget-aware draft itinerary ready for human review.
+
+---
+
+# 👤 Human-in-the-Loop
+
+The project implements a real LangGraph `interrupt()` checkpoint.
+
+Before producing the final response, the graph pauses and sends the user:
+
+```text
+Do you approve this itinerary?
+```
+
+The interrupt payload contains:
+
+* Draft itinerary
+* Approval request
+* Selected agents
+* Supervisor reasoning
+* Expected approval response
+
+The user can:
+
+### ✅ Approve
+
+```json
+{
+  "approved": true,
+  "feedback": ""
+}
+```
+
+The workflow resumes and the Final Agent generates the final travel response.
+
+### ✏️ Request a revision
+
+```json
+{
+  "approved": false,
+  "feedback": "Reduce the hotel cost and add more free activities."
+}
+```
+
+The workflow resumes with the feedback, and the Final Agent incorporates the requested changes.
+
+---
+
+# 💾 PostgreSQL Checkpointing
+
+LangGraph state is persisted using:
+
+```python
+PostgresSaver
+```
+
+The application connects to PostgreSQL using:
+
+```text
+DATABASE_URL
+```
+
+and automatically adds:
+
+```text
+sslmode=require
+```
+
+when it is not already present.
+
+The checkpointer is initialized with:
+
+```python
+checkpointer = PostgresSaver(_conn)
+checkpointer.setup()
+```
+
+and then attached when compiling the LangGraph workflow.
+
+This persistence is important for HITL because the graph must resume the same travel-planning thread after the user submits approval or revision feedback.
+
+---
+
+# 🌐 FastAPI Application
+
+The web application is implemented with **FastAPI**, not Flask.
+
+Main file:
+
+```text
+app.py
+```
+
+The API runs on:
+
+```text
+http://127.0.0.1:8000
+```
+
+by default.
+
+---
+
+# 🔗 API Endpoints
+
+## `GET /`
+
+Returns the TripMate AI web interface.
+
+---
+
+## `POST /api/travel`
+
+Starts or resumes a travel-planning thread.
+
+### Request
+
+```json
+{
+  "message": "Plan a 7-day trip to Japan from Morocco with a €2000 budget.",
+  "thread_id": null
+}
+```
+
+`thread_id` is optional for a new request.
+
+### Response
+
+The API returns information including:
+
+```json
+{
+  "success": true,
+  "thread_id": "...",
+  "answer": "...",
+  "requires_approval": true,
+  "approval_request": "...",
+  "flight_results": "...",
+  "hotel_results": "...",
+  "weather_results": "...",
+  "budget_results": "...",
+  "itinerary": "...",
+  "selected_agents": [],
+  "trip_constraints": {},
+  "supervisor_reasoning": "...",
+  "guardrail_allowed": true
+}
+```
+
+The exact response is produced by `_serialize_result()` in `backend.py`.
+
+---
+
+## `POST /api/travel/approve`
+
+Resumes a paused travel-planning thread.
+
+### Request
+
+```json
+{
+  "thread_id": "user_...",
+  "approved": true,
+  "feedback": ""
+}
+```
+
+For a revision:
+
+```json
+{
+  "thread_id": "user_...",
+  "approved": false,
+  "feedback": "Find cheaper hotels and add more free activities."
+}
+```
+
+The API requires feedback when the draft is rejected for revision.
+
+---
+
+## `GET /health`
+
+Returns a basic application health response.
 
 Example:
 
-```text
-User request
-     ↓
-Supervisor
-     ↓
-flight_agent
+```json
+{
+  "status": "ok",
+  "message": "TripMate AI API is running",
+  "features": [
+    "supervisor_agent",
+    "input_guardrail",
+    "human_in_the_loop"
+  ]
+}
 ```
-
-After the flight agent returns a result:
-
-```text
-flight_agent
-     ↓
-Output Guard
-     ↓
-Supervisor
-```
-
-The supervisor can then select another agent.
-
-## 4. Specialized Agents
-
-The agents process specific parts of the request:
-
-```text
-Flight Agent   → flight options
-Hotel Agent    → accommodation options
-Activity Agent → activities
-Budget Agent   → cost calculations
-```
-
-## 5. Output Validation
-
-Agent responses pass through the output guard.
-
-PII such as:
-
-```text
-john@example.com
-```
-
-can be transformed into:
-
-```text
-[EMAIL_MASKED]
-```
-
-## 6. Synthesis
-
-The system combines the collected results into a final itinerary.
-
-## 7. Human Approval
-
-The generated proposal is marked for human approval.
-
-The web application displays a confirmation dialog:
-
-```text
-Do you confirm this trip proposal?
-```
-
-The user's decision is stored in the current application session.
 
 ---
 
-# 🧰 Tech Stack
+# 🖥️ Web Interface
 
-| Component           | Technology                   |
-| ------------------- | ---------------------------- |
-| Language            | Python 3.10+                 |
-| LLM                 | OpenAI via LangChain         |
-| Orchestration       | LangGraph                    |
-| Agents              | LangGraph / LangChain        |
-| Tool Protocol       | Model Context Protocol (MCP) |
-| Backend             | Flask                        |
-| Validation          | Custom Python guardrails     |
-| Logging             | Loguru                       |
-| Configuration       | python-dotenv                |
-| Testing             | Pytest                       |
-| Containerization    | Docker                       |
-| State Checkpointing | LangGraph MemorySaver        |
-| Frontend            | HTML / CSS / JavaScript      |
+The frontend is implemented with:
+
+* HTML
+* CSS
+* Vanilla JavaScript
+* Marked.js
+* html2pdf.js
+
+The interface provides:
+
+* Travel request input
+* Quick prompts
+* Supervisor execution plan
+* Selected-agent display
+* Guardrail status
+* Draft itinerary display
+* Human approval controls
+* Revision feedback
+* Copy-to-clipboard
+* PDF export
+
+The frontend stores the current LangGraph thread ID in browser `localStorage`, allowing the browser to continue using the same conversation thread.
+
+---
+
+# 📄 PDF Export
+
+The web interface can export the generated travel plan as:
+
+```text
+ai-travel-plan.pdf
+```
+
+using `html2pdf.js` in the browser.
 
 ---
 
 # 📁 Project Structure
 
+The repository currently contains the following main files:
+
 ```text
 Trip_Agent_avance/
 │
-├── agents/
-│   ├── __init__.py
-│   ├── supervisor.py
-│   ├── flight_agent.py
-│   ├── hotel_agent.py
-│   ├── activity_agent.py
-│   └── budget_agent.py
+├── app.py
+│   └── FastAPI application and API endpoints
 │
-├── guardrails/
-│   ├── __init__.py
-│   ├── input_guard.py
-│   └── output_guard.py
+├── backend.py
+│   └── LangGraph workflow, agents, state and PostgreSQL checkpointing
 │
-├── mcp/
-│   ├── __init__.py
-│   ├── server.py
-│   └── client.py
+├── mcp_client.py
+│   └── MCP client configuration and tool helpers
 │
-├── graph/
-│   ├── __init__.py
-│   ├── state.py
-│   └── workflow.py
+├── custom_weather_mcp_server.py
+│   └── Local OpenWeather MCP server
+│
+├── requirements.txt
+│   └── Python dependencies
+│
+├── Dockerfile
+│   └── Container configuration
 │
 ├── templates/
-│   ├── index.html
-│   └── result.html
+│   └── index.html
+│       └── Web interface
 │
 ├── static/
-│   ├── css/
-│   │   └── style.css
-│   └── js/
-│       └── app.js
+│   ├── style.css
+│   │   └── Application styling
+│   │
+│   └── script.js
+│       └── Frontend logic and API calls
 │
-├── tests/
-│   ├── __init__.py
-│   ├── test_agents.py
-│   └── test_guardrails.py
-│
-├── app.py
-├── main.py
-├── requirements.txt
-├── Dockerfile
-├── docker-compose.yml
-├── .dockerignore
-├── .env.example
 ├── .gitignore
+│
+├── .dockerignore
+│
 ├── LICENSE
+│
 └── README.md
 ```
+
+The repository root currently contains `app.py`, `backend.py`, `mcp_client.py`, `custom_weather_mcp_server.py`, `requirements.txt`, `Dockerfile`, `LICENSE`, and the frontend directories.
+
+---
+
+# 🧰 Tech Stack
+
+| Layer                 | Technology                            |
+| --------------------- | ------------------------------------- |
+| Programming Language  | Python 3.11+                          |
+| Web Framework         | FastAPI                               |
+| ASGI Server           | Uvicorn                               |
+| LLM                   | Groq                                  |
+| Model                 | Llama 3.3 70B Versatile               |
+| Agent Orchestration   | LangGraph                             |
+| Tool Protocol         | Model Context Protocol (MCP)          |
+| MCP Adapter           | LangChain MCP Adapters                |
+| Web Research          | Tavily MCP                            |
+| Flight Data           | AviationStack MCP                     |
+| Weather               | OpenWeather API via custom MCP server |
+| Database              | PostgreSQL                            |
+| LangGraph Persistence | PostgresSaver                         |
+| Frontend              | HTML / CSS / JavaScript               |
+| Markdown Rendering    | Marked.js                             |
+| PDF Export            | html2pdf.js                           |
+| Containerization      | Docker                                |
+
+The dependency versions currently pinned in the repository include LangGraph 1.2.2, LangChain 1.3.2, LangChain-Groq 1.1.3, FastAPI 0.136.3, `langchain-mcp-adapters` 0.3.0, MCP 1.28.1, and PostgreSQL checkpoint support.
+
+---
+
+# ⚙️ Configuration
+
+The repository does not currently include a `.env.example` file, so create a `.env` file manually in the project root.
+
+Required environment variables:
+
+```env
+GROQ_API_KEY=your_groq_api_key
+
+DATABASE_URL=your_postgresql_connection_string
+
+TAVILY_API_KEY=your_tavily_api_key
+
+AVIATION_STACK_API_KEY=your_aviationstack_api_key
+
+OPENWEATHER_API_KEY=your_openweather_api_key
+```
+
+The AviationStack key can also be provided using:
+
+```env
+AVIATIONSTACK_API_KEY=your_aviationstack_api_key
+```
+
+The MCP client accepts both names.
 
 ---
 
@@ -384,531 +787,148 @@ git clone https://github.com/Hichamjb/Trip_Agent_avance-Multi-Agent-System-using
 cd Trip_Agent_avance-Multi-Agent-System-using-LangGraph-MCP-Supervisor-Guardrails-HITL
 ```
 
+---
+
 ## 2. Create a virtual environment
 
 ### Linux / macOS
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+python3.11 -m venv .venv
+source .venv/bin/activate
 ```
 
-### Windows
+### Windows PowerShell
 
-```bash
-python -m venv venv
-venv\Scripts\activate
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
 ```
 
-## 3. Install dependencies
+---
+
+## 3. Install Python dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## 4. Configure environment variables
+---
 
-Copy the example configuration:
+## 4. Install `uv`
+
+The AviationStack MCP server is launched through `uvx`.
+
+Install `uv` following the official Astral documentation, then verify:
 
 ```bash
-cp .env.example .env
+uvx --version
 ```
 
-On Windows:
-
-```powershell
-copy .env.example .env
-```
-
-Then add your OpenAI API key:
-
-```env
-OPENAI_API_KEY=your_api_key_here
-```
+The application explicitly checks for `uvx` when loading the AviationStack MCP server.
 
 ---
 
-# ⚙️ Configuration
+## 5. Create `.env`
 
-Example `.env`:
-
-```env
-# LLM
-OPENAI_API_KEY=your_openai_api_key
-LLM_MODEL=gpt-4o-mini
-TEMPERATURE=0.2
-
-# MCP
-MCP_SERVER_URL=http://localhost:8000
-
-# Guardrails
-GUARDRAILS_ENABLED=true
-GUARDRAILS_STRICT_MODE=false
-
-# Human approval
-HITL_ENABLED=true
-HITL_TIMEOUT=300
-
-# Flask
-FLASK_ENV=development
-SECRET_KEY=change_me
-PORT=5000
-
-# Logging
-LOG_LEVEL=INFO
-```
-
-> Never commit your `.env` file or API keys to Git.
-
----
-
-# 💻 Usage
-
-## CLI
-
-Run:
-
-```bash
-python main.py
-```
-
-Then enter a request:
+Create:
 
 ```text
-🌍 Describe your trip:
-5 days in Rome in May, budget €1200, history and gastronomy
+.env
 ```
 
-Or provide the request directly:
+in the project root:
 
-```bash
-python main.py --query "5 days in Rome in May, budget €1200, history and gastronomy"
+```env
+GROQ_API_KEY=your_groq_api_key
+DATABASE_URL=postgresql://username:password@host:5432/database
+TAVILY_API_KEY=your_tavily_api_key
+AVIATION_STACK_API_KEY=your_aviationstack_api_key
+OPENWEATHER_API_KEY=your_openweather_api_key
 ```
 
 ---
 
-# 🌐 Web Application
+# 🗄️ PostgreSQL Setup
 
-Start Flask:
+The application requires PostgreSQL because LangGraph uses `PostgresSaver` for persistent graph state.
+
+Set:
+
+```env
+DATABASE_URL=postgresql://username:password@host:5432/database
+```
+
+The application automatically adds:
+
+```text
+sslmode=require
+```
+
+when necessary.
+
+It also initializes the LangGraph checkpoint tables with:
+
+```python
+checkpointer.setup()
+```
+
+---
+
+# ▶️ Run the Application
+
+Start the FastAPI application:
 
 ```bash
 python app.py
 ```
 
-Then open:
+The application starts Uvicorn on:
 
 ```text
-http://localhost:5000
+http://127.0.0.1:8000
 ```
 
-Enter a travel request such as:
+Open the address in your browser.
 
-```text
-Plan a 5-day trip to Rome with a €1200 budget.
-I like history, museums and Italian food.
-```
+Alternatively:
 
-The application sends the request to:
-
-```text
-POST /api/plan
-```
-
-and displays the generated itinerary.
-
----
-
-# 🤖 Agents
-
-## ✈️ Flight Agent
-
-File:
-
-```text
-agents/flight_agent.py
-```
-
-Responsibilities:
-
-* Search flight options
-* Compare prices
-* Compare duration
-* Compare number of stops
-
-Current implementation uses **simulated flight data**.
-
-Example:
-
-```text
-Air France
-€220
-2h15
-0 stops
+```bash
+uvicorn app:app --reload --host 127.0.0.1 --port 8000
 ```
 
 ---
 
-## 🏨 Hotel Agent
+# 🧪 Testing MCP Connections
 
-File:
+The MCP client includes a helper for testing the configured MCP servers.
 
-```text
-agents/hotel_agent.py
-```
-
-Responsibilities:
-
-* Search accommodations
-* Compare prices
-* Compare ratings
-* Consider the budget
-
-Current implementation uses simulated hotel data.
-
----
-
-## 🎭 Activity Agent
-
-File:
-
-```text
-agents/activity_agent.py
-```
-
-The activity agent maps user preferences to predefined activities.
-
-Supported example preferences include:
-
-```text
-history
-gastronomy
-art
-nature
-```
-
-For example:
-
-```text
-history
-```
-
-may return:
-
-```text
-Colosseum
-Roman Forum
-Vatican
-Pantheon
-```
-
----
-
-## 💰 Budget Agent
-
-File:
-
-```text
-agents/budget_agent.py
-```
-
-Responsibilities:
-
-* Calculate total trip costs
-* Combine flight, hotel and activity costs
-* Perform basic currency conversion
-
-Example:
+You can run:
 
 ```python
-calculate_budget(
-    flights=220,
-    hotels=425,
-    activities=150,
-    misc=100
-)
+import asyncio
+from mcp_client import get_all_tools
+
+asyncio.run(get_all_tools())
 ```
 
-Result:
+It checks:
 
 ```text
-Total = €895
+tavily
+aviationstack
+weather
 ```
 
-The currency conversion rates are currently static demo values.
-
----
-
-# 🔌 MCP Integration
-
-The repository includes a basic **Model Context Protocol** implementation.
-
-The MCP server is located at:
-
-```text
-mcp/server.py
-```
-
-Currently exposed tools include:
-
-```text
-search_flights
-search_hotels
-```
-
-The MCP client is located at:
-
-```text
-mcp/client.py
-```
-
-The client establishes a local MCP session and can retrieve the available tools.
-
-### Important
-
-The current agent implementations still use their own local LangChain tools for the simulated flight and hotel searches.
-
-Therefore, the MCP implementation should currently be considered a **demonstration/integration layer**, rather than the primary execution path of all agents.
-
-A future version can connect the LangGraph agents directly to MCP tools.
-
----
-
-# 🛡️ Guardrails
-
-The project currently implements lightweight custom guardrails.
-
-## Input Guard
-
-Located at:
-
-```text
-guardrails/input_guard.py
-```
-
-It checks for:
-
-### Empty input
-
-```text
-""
-```
-
-### Excessively long requests
-
-Maximum:
-
-```text
-4000 characters
-```
-
-### Basic prompt-injection patterns
-
-Examples include:
-
-```text
-Ignore all previous instructions
-```
-
-```text
-Forget everything
-```
-
-```text
-You are now...
-```
-
-### HTML removal
-
-Example:
-
-```html
-<script>alert(1)</script>
-```
-
-is removed from the sanitized input.
-
----
-
-# 🔐 Output Guard
-
-Located at:
-
-```text
-guardrails/output_guard.py
-```
-
-It masks basic PII patterns.
-
-Supported examples:
-
-```text
-Email
-Phone number
-Credit-card-like numbers
-```
-
-Example:
-
-```text
-Contact: test@example.com
-```
-
-becomes:
-
-```text
-Contact: [EMAIL_MASKED]
-```
-
-> These are custom lightweight validation rules. The current implementation does not directly use Guardrails AI or NeMo Guardrails.
-
----
-
-# ✋ Human Approval
-
-The application includes a human approval stage after itinerary synthesis.
-
-The workflow sets:
-
-```python
-requires_approval = True
-```
-
-The web interface then displays:
-
-```text
-Do you confirm this trip proposal?
-```
-
-The decision is sent to:
-
-```text
-POST /api/approve
-```
-
-Example:
-
-```json
-{
-  "session_id": "SESSION_ID",
-  "approved": true
-}
-```
-
-### Current behavior
-
-The approval decision is stored in the application's in-memory session.
-
-It does **not** currently trigger a real booking or payment operation.
-
-There are no real irreversible actions implemented yet.
-
----
-
-# 🌐 Web API
-
-## Create a travel plan
-
-### `POST /api/plan`
-
-Example:
-
-```bash
-curl -X POST http://localhost:5000/api/plan \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "5 days in Rome, budget €1200, history and gastronomy"
-  }'
-```
-
-Example response:
-
-```json
-{
-  "session_id": "example-session-id",
-  "itinerary": "...",
-  "error": null,
-  "requires_approval": true
-}
-```
-
----
-
-## Check Status
-
-### `GET /api/status/<session_id>`
-
-Example:
-
-```text
-GET /api/status/example-session-id
-```
-
----
-
-## Approve / Reject
-
-### `POST /api/approve`
-
-Example:
-
-```json
-{
-  "session_id": "example-session-id",
-  "approved": true
-}
-```
-
----
-
-## Retrieve Result
-
-### `GET /api/result/<session_id>`
-
-Returns the available:
-
-* itinerary
-* flights
-* hotels
-* activities
-* budget
-
----
-
-# 🧪 Testing
-
-Run all tests:
-
-```bash
-pytest tests/ -v
-```
-
-Run guardrail tests:
-
-```bash
-pytest tests/test_guardrails.py -v
-```
-
-Run agent/state tests:
-
-```bash
-pytest tests/test_agents.py -v
-```
-
-The current tests cover:
-
-* Input validation
-* Empty input
-* Prompt-injection detection
-* HTML sanitization
-* PII masking
-* State structure
-* Supervisor routing
+and reports the available tools for each server.
 
 ---
 
 # 🐳 Docker
 
-Build the image:
+The repository contains a `Dockerfile`.
+
+Build:
 
 ```bash
 docker build -t trip-agent .
@@ -917,8 +937,8 @@ docker build -t trip-agent .
 Run:
 
 ```bash
-docker run \
-  -p 5000:5000 \
+docker run --rm \
+  -p 8000:8000 \
   --env-file .env \
   trip-agent
 ```
@@ -926,315 +946,258 @@ docker run \
 Then open:
 
 ```text
-http://localhost:5000
+http://localhost:8000
 ```
 
----
-
-# 🐳 Docker Compose
-
-Run:
+The Docker image is based on Python 3.11 and starts:
 
 ```bash
-docker compose up --build
+uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-The project contains two services:
-
-```text
-app
-│
-└── Flask application
-
-mcp-server
-│
-└── MCP server
-```
-
-For production, the application should use a dedicated production WSGI server and persistent storage.
+> The repository does not currently provide a `docker-compose.yml`, so PostgreSQL must be provided separately.
 
 ---
 
-# 📦 Requirements
-
-The project uses the following main libraries:
-
-```text
-Python
-LangChain
-LangGraph
-LangChain OpenAI
-MCP
-Flask
-Pydantic
-python-dotenv
-Loguru
-Pytest
-```
-
-See:
-
-```text
-requirements.txt
-```
-
-for the complete dependency list.
-
----
-
-# ⚠️ Current Limitations
-
-This repository is primarily an **AI architecture and multi-agent demonstration**.
-
-The following components are currently simulated or simplified:
-
-### ✈️ Travel APIs
-
-Flight and hotel results are hard-coded demo data.
-
-No real:
-
-* Amadeus API
-* Skyscanner API
-* Booking API
-* Expedia API
-
-is currently connected.
-
-### 🔌 MCP
-
-An MCP server/client is included, but the main agents currently use local LangChain tools instead of dynamically consuming all MCP tools.
-
-### 🛡️ Guardrails
-
-The project contains custom validation logic.
-
-It does not currently implement:
-
-* full Guardrails AI validators
-* full NeMo Guardrails configuration
-* advanced semantic prompt-injection detection
-
-### ✋ HITL
-
-The current human approval mechanism is implemented at the Flask application level.
-
-It is not yet a full LangGraph `interrupt()` workflow for pausing and resuming execution around an actual external action.
-
-### 💾 Persistence
-
-Sessions are currently stored in memory:
-
-```python
-SESSIONS = {}
-```
-
-Production deployments should use persistent storage such as Redis or PostgreSQL.
-
-### 💳 Booking
-
-The application does not perform:
-
-* flight booking
-* hotel booking
-* payment
-* cancellation
-
-No real transaction is executed.
-
----
-
-# 🚀 Future Improvements
-
-The architecture can be extended with:
-
-## Real Travel APIs
-
-Integrate:
-
-* Amadeus
-* Skyscanner
-* hotel APIs
-* weather APIs
-* maps and geolocation APIs
-
-## MCP Tool Integration
-
-Connect agents directly to MCP tools:
-
-```text
-LangGraph Agent
-      ↓
-MCP Client
-      ↓
-MCP Server
-      ↓
-External API
-```
-
-## Advanced HITL
-
-Use LangGraph interruption/checkpoint mechanisms to pause execution before:
-
-```text
-Booking
-Payment
-Cancellation
-```
-
-and resume only after explicit user approval.
-
-## Persistent Memory
-
-Replace:
-
-```python
-SESSIONS = {}
-```
-
-with:
-
-```text
-Redis
-PostgreSQL
-```
-
-## Observability
-
-Add:
-
-* LangSmith tracing
-* structured logs
-* execution metrics
-* agent latency monitoring
-* tool-call monitoring
-
-## Better Itinerary Generation
-
-A dedicated itinerary-planning agent can combine:
-
-```text
-Flights
-+
-Hotels
-+
-Activities
-+
-Weather
-+
-Budget
-+
-User Preferences
-```
-
-into a structured daily itinerary.
-
----
-
-# 🎯 Example
-
-Input:
-
-```text
-I want to spend 5 days in Rome in May.
-My budget is €1200.
-I like history and gastronomy.
-```
-
-The system can conceptually produce:
-
-```text
-✈️ Flights
-- Air France: €220
-- Ryanair: €95
-
-🏨 Hotels
-- Hotel Roma Centro: €85/night
-- Trastevere B&B: €65/night
-
-🎭 Activities
-- Colosseum
-- Roman Forum
-- Vatican
-- Trastevere food tour
-- Pasta making class
-
-💰 Budget
-- Flights
-- Accommodation
-- Activities
-- Miscellaneous expenses
-
-✋ Human Approval
-- Confirm proposed trip
-```
-
-> Prices and travel options shown by the current version are demonstration data and should not be interpreted as real-time prices.
-
----
-
-# 🔒 Security Notes
-
-Never commit secrets to Git.
-
-Do not put API keys directly into Python files.
-
-Use:
+# 🔐 Security Considerations
+
+The project contains an LLM-based input guardrail, but it should not be considered a complete security boundary.
+
+For production use, consider adding:
+
+* Authentication
+* Authorization
+* API rate limiting
+* Secret management
+* HTTPS
+* Stronger prompt-injection defenses
+* Input/output schema validation
+* MCP server access control
+* PostgreSQL security configuration
+* Request logging and monitoring
+* API quota management
+
+Never commit:
 
 ```text
 .env
 ```
 
-and keep it excluded through:
-
-```text
-.gitignore
-```
-
-For production, additionally consider:
-
-* secret managers
-* authentication
-* rate limiting
-* HTTPS
-* persistent session storage
-* stronger prompt-injection detection
-* validation of external API responses
+or API keys to Git.
 
 ---
 
-# 🤝 Contributing
+# ⚠️ Current Limitations
 
-Contributions are welcome.
+## Flight Data
 
-1. Fork the repository.
-2. Create a feature branch:
+The Flight Agent currently retrieves airport and airline information through AviationStack MCP and uses the LLM to generate flight guidance.
 
-```bash
-git checkout -b feature/my-feature
+It should **not** be described as a complete flight booking system or guaranteed real-time fare-search engine.
+
+---
+
+## Hotel Search
+
+Hotel information is obtained through Tavily web search.
+
+Results therefore depend on:
+
+* Tavily availability
+* Search quality
+* Web content
+* Current indexed information
+
+The system does not perform hotel reservations.
+
+---
+
+## Weather
+
+Weather is connected to OpenWeather through the project's MCP server.
+
+Weather information is therefore dependent on the OpenWeather API and the configured API key.
+
+---
+
+## Budget
+
+The Budget Agent performs an LLM-based feasibility analysis.
+
+It does not execute a deterministic accounting system or payment operation.
+
+---
+
+## No Booking or Payment
+
+The project does not execute:
+
+* Flight booking
+* Hotel booking
+* Payment
+* Cancellation
+* Ticket issuance
+
+The HITL step reviews the generated itinerary; it is not a payment authorization system.
+
+---
+
+## LLM Dependency
+
+The current implementation uses:
+
+```text
+Groq
+Llama 3.3 70B Versatile
 ```
 
-3. Make your changes.
-4. Add or update tests.
-5. Commit:
+The backend requires `GROQ_API_KEY`.
 
-```bash
-git commit -m "Add my feature"
+---
+
+# 🔮 Future Improvements
+
+Possible extensions include:
+
+### ✈️ Advanced Flight Search
+
+Add dedicated tools for:
+
+```text
+flight search
+price comparison
+departure dates
+arrival dates
+connections
+baggage
+airline filters
 ```
 
-6. Push:
+### 🏨 Dedicated Hotel API
 
-```bash
-git push origin feature/my-feature
+Replace or complement web search with a structured hotel API.
+
+### 🗺️ Maps and Places
+
+Add:
+
+* Google Maps
+* OpenStreetMap
+* Places APIs
+* routing
+* distance calculation
+
+### 🧠 Long-Term Memory
+
+Store traveler preferences such as:
+
+```text
+preferred airlines
+hotel preferences
+budget preferences
+travel style
+favorite activities
 ```
 
-7. Open a Pull Request.
+### 📊 Observability
+
+Add:
+
+* LangSmith
+* structured logging
+* agent execution traces
+* latency monitoring
+* MCP tool-call monitoring
+* token/cost tracking
+
+### 🔒 Stronger Guardrails
+
+Introduce:
+
+* structured validation
+* prompt-injection classifiers
+* output verification
+* tool authorization policies
+* destination/result validation
+
+### ⚡ Parallel Agent Execution
+
+Independent agents such as:
+
+```text
+Flight
+Hotel
+Weather
+```
+
+could be executed concurrently to reduce total latency.
+
+### 💳 Transactional Booking
+
+A future production system could add booking APIs behind explicit HITL authorization.
+
+---
+
+# 🎯 Example Request
+
+Example:
+
+```text
+I want to travel from Casablanca to Rome for 5 days.
+My budget is €1200.
+I like history, museums and Italian food.
+Please consider the weather and recommend suitable hotels.
+```
+
+The system can:
+
+```text
+1. Validate the travel request
+        ↓
+2. Extract destination, origin, duration and budget
+        ↓
+3. Select relevant specialist agents
+        ↓
+4. Retrieve flight information
+        ↓
+5. Search hotel information
+        ↓
+6. Retrieve current weather and forecast
+        ↓
+7. Analyze budget feasibility
+        ↓
+8. Generate a draft itinerary
+        ↓
+9. Pause for human approval
+        ↓
+10. Apply approval/revision feedback
+        ↓
+11. Generate the final travel response
+```
+
+---
+
+# 📋 Final Response Format
+
+The Final Agent is instructed to organize the final response into sections such as:
+
+```text
+1. Trip Summary
+2. Flight Information
+3. Hotel Suggestions
+4. Weather Information
+5. Day-by-Day Itinerary
+6. Estimated Budget
+7. Final Recommendations
+```
+
+It also incorporates human feedback when a revision is requested.
 
 ---
 
 # 📄 License
 
-This project is licensed under the MIT License.
+This project is distributed under the MIT License.
 
 See:
 
@@ -1246,23 +1209,9 @@ for details.
 
 ---
 
-# 🙏 Acknowledgments
-
-This project uses and is inspired by:
-
-* [LangChain](https://www.langchain.com/)
-* [LangGraph](https://github.com/langchain-ai/langgraph)
-* [Model Context Protocol](https://modelcontextprotocol.io/)
-* [Flask](https://flask.palletsprojects.com/)
-* [Docker](https://www.docker.com/)
-
----
-
 # 👨‍💻 Author
 
 **Hicham Jabbad**
-
-AI Engineer — Generative AI, Agentic AI, RAG and Multi-Agent Systems
 
 GitHub:
 
@@ -1270,31 +1219,48 @@ https://github.com/Hichamjb
 
 ---
 
-## ⭐ Project Summary
+# ⭐ Project Summary
 
-**Trip Agent Advanced** demonstrates a modular architecture for building AI-powered travel planning systems using:
+Trip Agent Advanced demonstrates how **LangGraph + MCP + LLM agents + PostgreSQL persistence + Human-in-the-Loop** can be combined into a travel-planning workflow.
+
+The core architecture is:
 
 ```text
-Natural Language
-       ↓
-Input Guard
-       ↓
-Supervisor
-       ↓
-┌──────────────┬──────────────┬──────────────┬──────────────┐
-│ Flight Agent │ Hotel Agent  │ Activity     │ Budget Agent │
-│              │              │ Agent        │              │
-└──────────────┴──────────────┴──────────────┴──────────────┘
-       ↓
-Output Guard
-       ↓
-Supervisor
-       ↓
-Itinerary Synthesis
-       ↓
-Human Approval
-       ↓
-Final Result
+                 User
+                   │
+                   ▼
+             FastAPI API
+                   │
+                   ▼
+          Supervisor + Guardrail
+                   │
+          ┌────────┼─────────┐
+          │        │         │
+          ▼        ▼         ▼
+       Flight    Hotel    Weather
+       Agent     Agent     Agent
+          │        │         │
+          └────────┼─────────┘
+                   │
+                   ▼
+              Budget Agent
+                   │
+                   ▼
+            Itinerary Agent
+                   │
+                   ▼
+          ┌─────────────────┐
+          │ Human Approval  │
+          │   interrupt()   │
+          └────────┬────────┘
+                   │
+                   ▼
+             Final Agent
+                   │
+                   ▼
+              Final Plan
 ```
 
-The project is designed as a foundation that can be extended with real-world APIs, MCP-based tools, persistent memory, advanced guardrails, observability, and transactional booking workflows.
+The project demonstrates:
+
+**Multi-Agent Orchestration → MCP Tool Integration → Dynamic Routing → Persistent State → Human Review → Final AI Response**
